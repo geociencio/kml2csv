@@ -82,7 +82,11 @@ def group_placemarks_by_form(kmz_file_path):
         to extract the form name from the placemark's description HTML.
     """
     with zipfile.ZipFile(kmz_file_path, 'r') as kmz:
-        kml_file = next((name for name in kmz.namelist() if name.endswith('.kml')), None)
+        kml_file = None
+        for name in kmz.namelist():
+            if name.endswith('.kml'):
+                kml_file = name
+                break
         if not kml_file:
             raise ValueError(f"No .kml file found in {kmz_file_path}")
         kml_content = kmz.read(kml_file)
@@ -93,7 +97,12 @@ def group_placemarks_by_form(kmz_file_path):
     
     forms = {}
     for pm in placemarks:
-        desc_html = pm.find('kml:description', ns).text.strip() if pm.find('kml:description', ns) is not None and pm.find('kml:description', ns).text else ''
+        description_element = pm.find('kml:description', ns)
+        if description_element is not None and description_element.text:
+            desc_html = description_element.text.strip()
+        else:
+            desc_html = ''
+        
         form_name = get_form_name(desc_html)
         if form_name:
             if form_name not in forms:
@@ -119,13 +128,16 @@ def extract_placemark_data(placemark):
     """
     ns = {'kml': 'http://www.opengis.net/kml/2.2'}
     placemark_data = {}
-    
+
     name_element = placemark.find('kml:name', ns)
-    placemark_data['Name'] = name_element.text.strip() if name_element is not None and name_element.text else ''
+    if name_element is not None and name_element.text:
+        placemark_data['Name'] = name_element.text.strip()
+    else:
+        placemark_data['Name'] = ''
 
     coordinates_element = placemark.find('.//kml:coordinates', ns)
-    coordinates_string = coordinates_element.text.strip() if coordinates_element is not None and coordinates_element.text else ''
-    if coordinates_string:
+    if coordinates_element is not None and coordinates_element.text:
+        coordinates_string = coordinates_element.text.strip()
         coords = coordinates_string.split(',')
         placemark_data['Longitude'] = coords[0] if len(coords) > 0 else ''
         placemark_data['Latitude'] = coords[1] if len(coords) > 1 else ''
@@ -136,7 +148,10 @@ def extract_placemark_data(placemark):
         placemark_data['Altitude'] = ''
 
     description_element = placemark.find('kml:description', ns)
-    description_html = description_element.text.strip() if description_element is not None and description_element.text else ''
+    if description_element is not None and description_element.text:
+        description_html = description_element.text.strip()
+    else:
+        description_html = ''
     
     description_data = parse_html_description(description_html)
     placemark_data.update(description_data)
