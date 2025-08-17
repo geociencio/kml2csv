@@ -3,22 +3,30 @@ import zipfile
 import xml.etree.ElementTree as ET
 import csv
 
+def get_form_name(html_string):
+    """
+    Parses an HTML string to extract the content of the <h1> tag.
+    """
+    if not html_string:
+        return None
+    try:
+        root = ET.fromstring(f'<div>{html_string}</div>')
+        h1 = root.find('.//h1')
+        if h1 is not None and h1.text:
+            return h1.text.strip()
+    except ET.ParseError:
+        return None
+    return None
+
 def parse_html_description(html_string):
     """
     Parses an HTML string to extract data from tables.
-
-    Args:
-        html_string (str): The HTML content from the description tag.
-
-    Returns:
-        dict: A dictionary with the extracted data, preserving insertion order.
     """
     data = {}
     if not html_string:
         return data
 
     try:
-        # Wrap the HTML fragment to make it a valid XML for parsing
         root = ET.fromstring(f'<div>{html_string}</div>')
         tables = root.findall('.//table')
         for table in tables:
@@ -34,11 +42,10 @@ def parse_html_description(html_string):
         pass
     return data
 
-def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
+def kml_to_csv_by_form(kmz_file_path, output_csv_path):
     """
-    Extracts data from a KMZ file, prompts the user to select a placemark name,
-    parses all placemarks with that name, and writes them to a CSV file,
-    preserving the original order of fields.
+    Extracts data from a KMZ file, groups placemarks by form name (h1 tag),
+    prompts the user to select a form, and writes the data to a CSV file.
     """
     try:
         with zipfile.ZipFile(kmz_file_path, 'r') as kmz:
@@ -53,33 +60,37 @@ def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
 
         placemarks = root.findall('.//kml:Placemark', ns)
         
-        placemark_names = sorted(list(set([pm.find('kml:name', ns).text for pm in placemarks if pm.find('kml:name', ns) is not None and pm.find('kml:name', ns).text])))
+        forms = {}
+        for pm in placemarks:
+            desc_html = pm.find('kml:description', ns).text.strip() if pm.find('kml:description', ns) is not None and pm.find('kml:description', ns).text else ''
+            form_name = get_form_name(desc_html)
+            if form_name:
+                if form_name not in forms:
+                    forms[form_name] = []
+                forms[form_name].append(pm)
 
-        if not placemark_names:
-            print("No placemarks with names found.")
+        form_names = sorted(list(forms.keys()))
+
+        if not form_names:
+            print("No forms (h1 tags in description) found.")
             return
 
-        print("\nPlease choose a placemark name to process:")
-        for i, name in enumerate(placemark_names):
+        print("\nPlease choose a form to process:")
+        for i, name in enumerate(form_names):
             print(f"{i + 1}: {name}")
 
         try:
-            choice_index = int(input("\nEnter the number of the placemark name: ")) - 1
-            if not 0 <= choice_index < len(placemark_names):
+            choice_index = int(input("\nEnter the number of the form: ")) - 1
+            if not 0 <= choice_index < len(form_names):
                 print("Invalid choice.")
                 return
-            selected_name = placemark_names[choice_index]
+            selected_form_name = form_names[choice_index]
         except (ValueError, IndexError):
             print("Invalid input.")
             return
 
-        selected_placemarks = [pm for pm in placemarks if pm.find('kml:name', ns) is not None and pm.find('kml:name', ns).text == selected_name]
+        selected_placemarks = forms[selected_form_name]
 
-        if not selected_placemarks:
-            print(f"No placemarks found with the name '{selected_name}'.")
-            return
-
-        # Determine field order from the first selected placemark
         first_placemark_desc_html = selected_placemarks[0].find('kml:description', ns).text.strip() if selected_placemarks[0].find('kml:description', ns) is not None else ''
         description_keys = list(parse_html_description(first_placemark_desc_html).keys())
         
@@ -117,7 +128,7 @@ def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
             writer.writeheader()
             writer.writerows(all_placemarks_data)
 
-        print(f"\nConversion successful. {len(all_placemarks_data)} placemarks with the name '{selected_name}' written to {output_csv_path}")
+        print(f"\nConversion successful. {len(all_placemarks_data)} placemarks from form '{selected_form_name}' written to {output_csv_path}")
 
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -130,6 +141,6 @@ if __name__ == "__main__":
     csv_filepath = os.path.join(script_dir, csv_filename)
 
     if os.path.exists(kmz_filepath):
-        kml_to_csv_interactive_multiple(kmz_filepath, csv_filepath)
+        kml_to_csv_by_form(kmz_filepath, csv_filepath)
     else:
         print(f"Input file not found: {kmz_filepath}")
