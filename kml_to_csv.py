@@ -1,6 +1,10 @@
 import os
 import csv
-from kml_parser import group_placemarks_by_form, extract_placemark_data, parse_html_description
+from kml_parser import (
+    group_placemarks_by_form,
+    extract_placemark_data,
+    parse_html_description
+)
 
 def main():
     """
@@ -40,14 +44,21 @@ def main():
 
         # Determine field order from the first placemark
         ns = {'kml': 'http://www.opengis.net/kml/2.2'}
-        first_placemark_description_element = selected_placemarks[0].find('kml:description', ns)
-        if first_placemark_description_element is not None and first_placemark_description_element.text:
-            first_placemark_desc_html = first_placemark_description_element.text.strip()
+        first_placemark_description_element = selected_placemarks[0].find(
+            'kml:description', ns
+        )
+        if first_placemark_description_element is not None and \
+           first_placemark_description_element.text:
+            first_placemark_desc_html = \
+                first_placemark_description_element.text.strip()
         else:
             first_placemark_desc_html = ''
-        description_keys = list(parse_html_description(first_placemark_desc_html).keys())
+        description_keys = list(
+            parse_html_description(first_placemark_desc_html).keys()
+        )
         
-        fieldnames = ['Name', 'Longitude', 'Latitude', 'Altitude'] + description_keys
+        fieldnames = ['Name', 'Longitude', 'Latitude', 'Altitude'] + \
+                     description_keys
 
 
         all_placemarks_data = []
@@ -59,11 +70,15 @@ def main():
         csv_filepath = os.path.join(script_dir, csv_filename)
 
         with open(csv_filepath, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames,
+                                    extrasaction='ignore')
             writer.writeheader()
             writer.writerows(all_placemarks_data)
 
-        print(f"\nConversion successful. {len(all_placemarks_data)} placemarks from form '{selected_form_name}' written to {csv_filepath}")
+        print(
+            f"\nConversion successful. {len(all_placemarks_data)} placemarks "
+            f"from form '{selected_form_name}' written to {csv_filepath}"
+        )
 
     except Exception as e:
         print(f"An error occurred: {e}")
