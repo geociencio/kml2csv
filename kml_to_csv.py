@@ -81,7 +81,7 @@ def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
             return
 
         all_placemarks_data = []
-        all_fieldnames = set(['Name', 'Coordinates'])
+        all_fieldnames = set(['Name', 'Longitude', 'Latitude', 'Altitude'])
 
         for placemark in selected_placemarks:
             placemark_data = {}
@@ -90,7 +90,16 @@ def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
             placemark_data['Name'] = name_element.text.strip() if name_element is not None and name_element.text else ''
 
             coordinates_element = placemark.find('.//kml:coordinates', ns)
-            placemark_data['Coordinates'] = coordinates_element.text.strip() if coordinates_element is not None and coordinates_element.text else ''
+            coordinates_string = coordinates_element.text.strip() if coordinates_element is not None and coordinates_element.text else ''
+            if coordinates_string:
+                coords = coordinates_string.split(',')
+                placemark_data['Longitude'] = coords[0] if len(coords) > 0 else ''
+                placemark_data['Latitude'] = coords[1] if len(coords) > 1 else ''
+                placemark_data['Altitude'] = coords[2] if len(coords) > 2 else ''
+            else:
+                placemark_data['Longitude'] = ''
+                placemark_data['Latitude'] = ''
+                placemark_data['Altitude'] = ''
 
             description_element = placemark.find('kml:description', ns)
             description_html = description_element.text.strip() if description_element is not None and description_element.text else ''
@@ -101,7 +110,7 @@ def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
             all_placemarks_data.append(placemark_data)
             all_fieldnames.update(placemark_data.keys())
 
-        fieldnames = ['Name', 'Coordinates'] + sorted([key for key in all_fieldnames if key not in ['Name', 'Coordinates']])
+        fieldnames = ['Name', 'Longitude', 'Latitude', 'Altitude'] + sorted([key for key in all_fieldnames if key not in ['Name', 'Longitude', 'Latitude', 'Altitude']])
 
         with open(output_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
