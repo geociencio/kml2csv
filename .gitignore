@@ -4,6 +4,9 @@ env/
 # Output files
 *.csv
 
+# Data files
+*.kmz
+
 # IDE/Editor specific files
 .vscode/
 .idea/

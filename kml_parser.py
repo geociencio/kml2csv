@@ -4,6 +4,15 @@ import zipfile
 def get_form_name(html_string):
     """
     Parses an HTML string to extract the content of the <h1> tag.
+    Extracts and returns the text content of the first <h1> tag 
+    found in the given HTML string.
+
+    Args:
+        html_string (str): The HTML string to parse.
+
+    Returns:
+        str or None: The stripped text content of the <h1> tag if found, 
+                     otherwise None.
     """
     if not html_string:
         return None
@@ -18,7 +27,24 @@ def get_form_name(html_string):
 
 def parse_html_description(html_string):
     """
-    Parses an HTML string to extract data from tables.
+    Parses an HTML string containing tables and 
+        extracts key-value pairs from table rows.
+    Each table row is expected to have two cells: 
+        the first cell is used as the key and the second as the value.
+    Returns a dictionary mapping keys to values extracted from the tables.
+    Args:
+        html_string (str): The HTML string to parse.
+    Returns:
+        dict: A dictionary containing key-value pairs extracted from the HTML tables.
+    example:
+        input: 
+        "<table>
+                <tr><td>Key1</td><td>Value1</td></tr>
+                <tr><td>Key2</td><td>Value2</td></tr>
+        </table>"
+        output: {'Key1': 'Value1', 'Key2': 'Value2'}
+
+
     """
     data = {}
     if not html_string:
@@ -42,7 +68,18 @@ def parse_html_description(html_string):
 
 def group_placemarks_by_form(kmz_file_path):
     """
-    Parses a KMZ file and groups placemarks by the form name found in their description.
+    Parses a KMZ file and groups KML placemarks by the form name 
+    extracted from their description.
+    Args:
+        kmz_file_path (str): Path to the KMZ file to be parsed.
+    Returns:
+        dict: A dictionary where keys are form names (str) and values are 
+            lists of placemark elements (xml.etree.ElementTree.Element).
+    Raises:
+        ValueError: If no .kml file is found inside the KMZ archive.
+    Note:
+        The function expects a helper function `get_form_name` 
+        to extract the form name from the placemark's description HTML.
     """
     with zipfile.ZipFile(kmz_file_path, 'r') as kmz:
         kml_file = next((name for name in kmz.namelist() if name.endswith('.kml')), None)
@@ -66,6 +103,18 @@ def group_placemarks_by_form(kmz_file_path):
 
 def extract_placemark_data(placemark):
     """
+    Extracts relevant data from a KML Placemark XML element.
+    This function parses the provided Placemark element to extract its name, 
+        coordinates (longitude, latitude, altitude),
+        and description. The description is further processed to extract 
+        additional structured data using the `parse_html_description` function.
+    Args:
+        placemark (xml.etree.ElementTree.Element): 
+            The Placemark XML element to extract data from.
+    Returns:
+        dict: A dictionary containing extracted data fields 
+                such as 'Name', 'Longitude', 'Latitude', 'Altitude',
+                and any additional fields parsed from the description.
     Extracts all relevant data from a single placemark element.
     """
     ns = {'kml': 'http://www.opengis.net/kml/2.2'}
