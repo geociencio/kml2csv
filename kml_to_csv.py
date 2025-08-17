@@ -1,74 +1,21 @@
 import os
-import zipfile
-import xml.etree.ElementTree as ET
 import csv
+from kml_parser import group_placemarks_by_form, extract_placemark_data, parse_html_description
 
-def get_form_name(html_string):
+def main():
     """
-    Parses an HTML string to extract the content of the <h1> tag.
-    """
-    if not html_string:
-        return None
-    try:
-        root = ET.fromstring(f'<div>{html_string}</div>')
-        h1 = root.find('.//h1')
-        if h1 is not None and h1.text:
-            return h1.text.strip()
-    except ET.ParseError:
-        return None
-    return None
-
-def parse_html_description(html_string):
-    """
-    Parses an HTML string to extract data from tables.
-    """
-    data = {}
-    if not html_string:
-        return data
-
-    try:
-        root = ET.fromstring(f'<div>{html_string}</div>')
-        tables = root.findall('.//table')
-        for table in tables:
-            rows = table.findall('.//tr')
-            for row in rows:
-                cells = row.findall('.//td')
-                if len(cells) == 2:
-                    key = cells[0].text.strip() if cells[0].text else ''
-                    value = cells[1].text.strip() if cells[1].text else ''
-                    if key:
-                        data[key] = value
-    except ET.ParseError:
-        pass
-    return data
-
-def kml_to_csv_by_form(kmz_file_path, output_csv_path):
-    """
-    Extracts data from a KMZ file, groups placemarks by form name (h1 tag),
-    prompts the user to select a form, and writes the data to a CSV file.
+    Main function to run the KML to CSV conversion process.
     """
     try:
-        with zipfile.ZipFile(kmz_file_path, 'r') as kmz:
-            kml_file = next((name for name in kmz.namelist() if name.endswith('.kml')), None)
-            if not kml_file:
-                print(f"No .kml file found in {kmz_file_path}")
-                return
-            kml_content = kmz.read(kml_file)
-
-        root = ET.fromstring(kml_content)
-        ns = {'kml': 'http://www.opengis.net/kml/2.2'}
-
-        placemarks = root.findall('.//kml:Placemark', ns)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        kmz_filename = 'geopaparazzi_20250721_014514_kmz_20250817_012241.kmz'
+        kmz_filepath = os.path.join(script_dir, kmz_filename)
         
-        forms = {}
-        for pm in placemarks:
-            desc_html = pm.find('kml:description', ns).text.strip() if pm.find('kml:description', ns) is not None and pm.find('kml:description', ns).text else ''
-            form_name = get_form_name(desc_html)
-            if form_name:
-                if form_name not in forms:
-                    forms[form_name] = []
-                forms[form_name].append(pm)
+        if not os.path.exists(kmz_filepath):
+            print(f"Input file not found: {kmz_filepath}")
+            return
 
+        forms = group_placemarks_by_form(kmz_filepath)
         form_names = sorted(list(forms.keys()))
 
         if not form_names:
@@ -91,56 +38,31 @@ def kml_to_csv_by_form(kmz_file_path, output_csv_path):
 
         selected_placemarks = forms[selected_form_name]
 
+        # Determine field order from the first placemark
+        ns = {'kml': 'http://www.opengis.net/kml/2.2'}
         first_placemark_desc_html = selected_placemarks[0].find('kml:description', ns).text.strip() if selected_placemarks[0].find('kml:description', ns) is not None else ''
         description_keys = list(parse_html_description(first_placemark_desc_html).keys())
         
         fieldnames = ['Name', 'Longitude', 'Latitude', 'Altitude'] + description_keys
 
+
         all_placemarks_data = []
-        for placemark in selected_placemarks:
-            placemark_data = {}
-            
-            name_element = placemark.find('kml:name', ns)
-            placemark_data['Name'] = name_element.text.strip() if name_element is not None and name_element.text else ''
+        for pm in selected_placemarks:
+            all_placemarks_data.append(extract_placemark_data(pm))
+        
+        # Define output csv path based on form name
+        csv_filename = f"{selected_form_name.replace(' ', '_').lower()}.csv"
+        csv_filepath = os.path.join(script_dir, csv_filename)
 
-            coordinates_element = placemark.find('.//kml:coordinates', ns)
-            coordinates_string = coordinates_element.text.strip() if coordinates_element is not None and coordinates_element.text else ''
-            if coordinates_string:
-                coords = coordinates_string.split(',')
-                placemark_data['Longitude'] = coords[0] if len(coords) > 0 else ''
-                placemark_data['Latitude'] = coords[1] if len(coords) > 1 else ''
-                placemark_data['Altitude'] = coords[2] if len(coords) > 2 else ''
-            else:
-                placemark_data['Longitude'] = ''
-                placemark_data['Latitude'] = ''
-                placemark_data['Altitude'] = ''
-
-            description_element = placemark.find('kml:description', ns)
-            description_html = description_element.text.strip() if description_element is not None and description_element.text else ''
-            
-            description_data = parse_html_description(description_html)
-            placemark_data.update(description_data)
-            
-            all_placemarks_data.append(placemark_data)
-
-        with open(output_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+        with open(csv_filepath, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(all_placemarks_data)
 
-        print(f"\nConversion successful. {len(all_placemarks_data)} placemarks from form '{selected_form_name}' written to {output_csv_path}")
+        print(f"\nConversion successful. {len(all_placemarks_data)} placemarks from form '{selected_form_name}' written to {csv_filepath}")
 
     except Exception as e:
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    kmz_filename = 'geopaparazzi_20250721_014514_kmz_20250817_012241.kmz'
-    kmz_filepath = os.path.join(script_dir, kmz_filename)
-    csv_filename = 'output.csv'
-    csv_filepath = os.path.join(script_dir, csv_filename)
-
-    if os.path.exists(kmz_filepath):
-        kml_to_csv_by_form(kmz_filepath, csv_filepath)
-    else:
-        print(f"Input file not found: {kmz_filepath}")
+    main()
