@@ -11,7 +11,7 @@ def parse_html_description(html_string):
         html_string (str): The HTML content from the description tag.
 
     Returns:
-        dict: A dictionary with the extracted data.
+        dict: A dictionary with the extracted data, preserving insertion order.
     """
     data = {}
     if not html_string:
@@ -37,7 +37,8 @@ def parse_html_description(html_string):
 def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
     """
     Extracts data from a KMZ file, prompts the user to select a placemark name,
-    parses all placemarks with that name, and writes them to a CSV file.
+    parses all placemarks with that name, and writes them to a CSV file,
+    preserving the original order of fields.
     """
     try:
         with zipfile.ZipFile(kmz_file_path, 'r') as kmz:
@@ -52,7 +53,6 @@ def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
 
         placemarks = root.findall('.//kml:Placemark', ns)
         
-        # Get unique placemark names
         placemark_names = sorted(list(set([pm.find('kml:name', ns).text for pm in placemarks if pm.find('kml:name', ns) is not None and pm.find('kml:name', ns).text])))
 
         if not placemark_names:
@@ -73,16 +73,19 @@ def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
             print("Invalid input.")
             return
 
-        # Find all placemarks with the selected name
         selected_placemarks = [pm for pm in placemarks if pm.find('kml:name', ns) is not None and pm.find('kml:name', ns).text == selected_name]
 
         if not selected_placemarks:
             print(f"No placemarks found with the name '{selected_name}'.")
             return
 
-        all_placemarks_data = []
-        all_fieldnames = set(['Name', 'Longitude', 'Latitude', 'Altitude'])
+        # Determine field order from the first selected placemark
+        first_placemark_desc_html = selected_placemarks[0].find('kml:description', ns).text.strip() if selected_placemarks[0].find('kml:description', ns) is not None else ''
+        description_keys = list(parse_html_description(first_placemark_desc_html).keys())
+        
+        fieldnames = ['Name', 'Longitude', 'Latitude', 'Altitude'] + description_keys
 
+        all_placemarks_data = []
         for placemark in selected_placemarks:
             placemark_data = {}
             
@@ -108,12 +111,9 @@ def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
             placemark_data.update(description_data)
             
             all_placemarks_data.append(placemark_data)
-            all_fieldnames.update(placemark_data.keys())
-
-        fieldnames = ['Name', 'Longitude', 'Latitude', 'Altitude'] + sorted([key for key in all_fieldnames if key not in ['Name', 'Longitude', 'Latitude', 'Altitude']])
 
         with open(output_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(all_placemarks_data)
 
