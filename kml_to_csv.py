@@ -34,10 +34,10 @@ def parse_html_description(html_string):
         pass
     return data
 
-def kml_to_csv_interactive(kmz_file_path, output_csv_path):
+def kml_to_csv_interactive_multiple(kmz_file_path, output_csv_path):
     """
-    Extracts data from a KMZ file, prompts the user to select a placemark,
-    parses its KML and HTML content, and writes it to a CSV file.
+    Extracts data from a KMZ file, prompts the user to select a placemark name,
+    parses all placemarks with that name, and writes them to a CSV file.
     """
     try:
         with zipfile.ZipFile(kmz_file_path, 'r') as kmz:
@@ -51,18 +51,20 @@ def kml_to_csv_interactive(kmz_file_path, output_csv_path):
         ns = {'kml': 'http://www.opengis.net/kml/2.2'}
 
         placemarks = root.findall('.//kml:Placemark', ns)
-        placemark_names = [pm.find('kml:name', ns).text for pm in placemarks if pm.find('kml:name', ns) is not None and pm.find('kml:name', ns).text]
+        
+        # Get unique placemark names
+        placemark_names = sorted(list(set([pm.find('kml:name', ns).text for pm in placemarks if pm.find('kml:name', ns) is not None and pm.find('kml:name', ns).text])))
 
         if not placemark_names:
             print("No placemarks with names found.")
             return
 
-        print("\nPlease choose a placemark to process:")
+        print("\nPlease choose a placemark name to process:")
         for i, name in enumerate(placemark_names):
             print(f"{i + 1}: {name}")
 
         try:
-            choice_index = int(input("\nEnter the number of the placemark: ")) - 1
+            choice_index = int(input("\nEnter the number of the placemark name: ")) - 1
             if not 0 <= choice_index < len(placemark_names):
                 print("Invalid choice.")
                 return
@@ -71,37 +73,42 @@ def kml_to_csv_interactive(kmz_file_path, output_csv_path):
             print("Invalid input.")
             return
 
-        selected_placemark = None
-        for pm in placemarks:
-            if pm.find('kml:name', ns).text == selected_name:
-                selected_placemark = pm
-                break
-        
-        if selected_placemark is None:
-            print(f"Placemark '{selected_name}' not found.")
+        # Find all placemarks with the selected name
+        selected_placemarks = [pm for pm in placemarks if pm.find('kml:name', ns) is not None and pm.find('kml:name', ns).text == selected_name]
+
+        if not selected_placemarks:
+            print(f"No placemarks found with the name '{selected_name}'.")
             return
 
-        placemark_data = {}
-        name_element = selected_placemark.find('kml:name', ns)
-        placemark_data['Name'] = name_element.text.strip() if name_element is not None and name_element.text else ''
+        all_placemarks_data = []
+        all_fieldnames = set(['Name', 'Coordinates'])
 
-        coordinates_element = selected_placemark.find('.//kml:coordinates', ns)
-        placemark_data['Coordinates'] = coordinates_element.text.strip() if coordinates_element is not None and coordinates_element.text else ''
+        for placemark in selected_placemarks:
+            placemark_data = {}
+            
+            name_element = placemark.find('kml:name', ns)
+            placemark_data['Name'] = name_element.text.strip() if name_element is not None and name_element.text else ''
 
-        description_element = selected_placemark.find('kml:description', ns)
-        description_html = description_element.text.strip() if description_element is not None and description_element.text else ''
-        
-        description_data = parse_html_description(description_html)
-        placemark_data.update(description_data)
+            coordinates_element = placemark.find('.//kml:coordinates', ns)
+            placemark_data['Coordinates'] = coordinates_element.text.strip() if coordinates_element is not None and coordinates_element.text else ''
 
-        fieldnames = list(placemark_data.keys())
+            description_element = placemark.find('kml:description', ns)
+            description_html = description_element.text.strip() if description_element is not None and description_element.text else ''
+            
+            description_data = parse_html_description(description_html)
+            placemark_data.update(description_data)
+            
+            all_placemarks_data.append(placemark_data)
+            all_fieldnames.update(placemark_data.keys())
+
+        fieldnames = ['Name', 'Coordinates'] + sorted([key for key in all_fieldnames if key not in ['Name', 'Coordinates']])
 
         with open(output_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-            writer.writerow(placemark_data)
+            writer.writerows(all_placemarks_data)
 
-        print(f"\nConversion successful. Data for '{selected_name}' written to {output_csv_path}")
+        print(f"\nConversion successful. {len(all_placemarks_data)} placemarks with the name '{selected_name}' written to {output_csv_path}")
 
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -114,6 +121,6 @@ if __name__ == "__main__":
     csv_filepath = os.path.join(script_dir, csv_filename)
 
     if os.path.exists(kmz_filepath):
-        kml_to_csv_interactive(kmz_filepath, csv_filepath)
+        kml_to_csv_interactive_multiple(kmz_filepath, csv_filepath)
     else:
         print(f"Input file not found: {kmz_filepath}")
