@@ -40,7 +40,11 @@ def main():
 
         # Determine field order from the first placemark
         ns = {'kml': 'http://www.opengis.net/kml/2.2'}
-        first_placemark_desc_html = selected_placemarks[0].find('kml:description', ns).text.strip() if selected_placemarks[0].find('kml:description', ns) is not None else ''
+        first_placemark_description_element = selected_placemarks[0].find('kml:description', ns)
+        if first_placemark_description_element is not None and first_placemark_description_element.text:
+            first_placemark_desc_html = first_placemark_description_element.text.strip()
+        else:
+            first_placemark_desc_html = ''
         description_keys = list(parse_html_description(first_placemark_desc_html).keys())
         
         fieldnames = ['Name', 'Longitude', 'Latitude', 'Altitude'] + description_keys

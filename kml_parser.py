@@ -35,7 +35,8 @@ def parse_html_description(html_string):
     Args:
         html_string (str): The HTML string to parse.
     Returns:
-        dict: A dictionary containing key-value pairs extracted from the HTML tables.
+        dict: A dictionary containing key-value pairs 
+        extracted from the HTML tables.
     example:
         input: 
         "<table>
@@ -101,8 +102,7 @@ def group_placemarks_by_form(kmz_file_path):
         if description_element is not None and description_element.text:
             desc_html = description_element.text.strip()
         else:
-            desc_html = ''
-        
+            desc_html = '' 
         form_name = get_form_name(desc_html)
         if form_name:
             if form_name not in forms:
