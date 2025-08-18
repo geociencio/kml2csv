@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 import zipfile
 
-def get_form_name(html_string):
+def get_form_name(html_string: str) -> str | None:
     """
     Parses an HTML string to extract the content of the <h1> tag.
     Extracts and returns the text content of the first <h1> tag 
@@ -25,7 +25,7 @@ def get_form_name(html_string):
         return None
     return None
 
-def parse_html_description(html_string):
+def parse_html_description(html_string: str) -> dict[str, str]:
     """
     Parses an HTML string containing tables and 
         extracts key-value pairs from table rows.
@@ -67,7 +67,7 @@ def parse_html_description(html_string):
         pass
     return data
 
-def group_placemarks_by_form(kmz_file_path):
+def group_placemarks_by_form(kmz_file_path: str) -> dict[str, list[ET.Element]]:
     """
     Parses a KMZ file and groups KML placemarks by the form name 
     extracted from their description.
@@ -110,7 +110,7 @@ def group_placemarks_by_form(kmz_file_path):
             forms[form_name].append(pm)
     return forms
 
-def extract_placemark_data(placemark):
+def extract_placemark_data(placemark: ET.Element) -> dict[str, str]:
     """
     Extracts relevant data from a KML Placemark XML element.
     This function parses the provided Placemark element to extract its name, 
