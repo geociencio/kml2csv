@@ -1,5 +1,77 @@
+# -- coding: utf-8 -*-
+"""kml_parser.py
+Contains functions for parsing KML and KMZ files, extracting placemark data,
+and grouping them by form based on the HTML description.
+This module provides utilities to read KML files, extract relevant data from 
+placemarks, group them by form, and parse HTML descriptions to extract 
+additional structured data.
+Usage:
+    from kml_parser import (
+        group_placemarks_by_form,
+        extract_placemark_data,
+        parse_html_description
+    )
+Dependencies:
+    - xml.etree.ElementTree: For XML parsing.
+    - zipfile: For handling KMZ files.
+    - html.parser: For parsing HTML content.
+    - typing: For type hinting.
+Example:
+    from kml_parser import group_placemarks_by_form, extract_placemark_data 
+    kmz_file_path = 'path/to/your/file.kmz'
+    forms = group_placemarks_by_form(kmz_file_path)
+    for form_name, placemarks in forms.items():
+        print(f"Form: {form_name}")
+        for placemark in placemarks:
+            data = extract_placemark_data(placemark)
+            print(data)
+    This module is designed to be used as a library for KML/KMZ file processing
+    and can be integrated into larger applications or scripts.  
+    begin          : 2025-Aug-17
+    git sha1       : 1234567890abcdef1234567890abcdef12345678
+    copyright       : (c) 2025 by Juan M. Bernales
+    email          : juanbernales at gmail dot com
+    license       : GPLv3
+    version        : 1.0.0
+"""
 import xml.etree.ElementTree as ET
 import zipfile
+from html.parser import HTMLParser
+
+class TableHTMLParser(HTMLParser):
+    """
+    A simple HTML parser to extract table data.
+    This class extends the HTMLParser from the html.parser module 
+    to specifically parse HTML tables and extract key-value pairs 
+    from table rows.
+    """
+    def __init__(self):
+        super().__init__()
+        self.in_td = False
+        self.current_row = []  # type: list[str]
+        self.data = {}  # type: dict[str, str]
+
+    def handle_starttag(self, tag, attrs):
+        """Handles the start of an HTML tag."""
+        if tag.lower() == 'td':
+            self.in_td = True
+
+    def handle_endtag(self, tag):
+        """Handles the end of an HTML tag."""
+        if tag.lower() == 'td':
+            self.in_td = False
+        elif tag.lower() == 'tr':
+            if len(self.current_row) == 2:
+                key = self.current_row[0].strip()
+                value = self.current_row[1].strip()
+                if key:
+                    self.data[key] = value
+            self.current_row = []
+
+    def handle_data(self, data):
+        """Handles the data within an HTML tag."""
+        if self.in_td:
+            self.current_row.append(data)
 
 def get_form_name(html_string: str) -> str | None:
     """
@@ -47,25 +119,9 @@ def parse_html_description(html_string: str) -> dict[str, str]:
 
 
     """
-    data = {}
-    if not html_string:
-        return data
-
-    try:
-        root = ET.fromstring(f'<div>{html_string}</div>')
-        tables = root.findall('.//table')
-        for table in tables:
-            rows = table.findall('.//tr')
-            for row in rows:
-                cells = row.findall('.//td')
-                if len(cells) == 2:
-                    key = cells[0].text.strip() if cells[0].text else ''
-                    value = cells[1].text.strip() if cells[1].text else ''
-                    if key:
-                        data[key] = value
-    except ET.ParseError:
-        pass
-    return data
+    parser = TableHTMLParser()
+    parser.feed(html_string or "")
+    return parser.data
 
 def group_placemarks_by_form(kmz_file_path: str) -> dict[str, list[ET.Element]]:
     """
