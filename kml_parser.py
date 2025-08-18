@@ -37,6 +37,32 @@ Example:
 import xml.etree.ElementTree as ET
 import zipfile
 from html.parser import HTMLParser
+from typing import Optional, Dict, Any
+from dataclasses import dataclass, field
+
+@dataclass
+class PlacemarkData:
+    """Data class to hold extracted placemark data.
+    This class is used to store the name, coordinates (longitude, latitude, altitude),
+    and any additional structured data extracted from the placemark's description.
+    """
+    name: str = ''
+    longitude: str = ''
+    latitude: str = ''
+    altitude: str = ''
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+NO_FORM = "__NO_FORM__"
+                        # This constant is used to represent placemarks that do 
+                        # not belong to any specific form. It is used as a
+                        # default value when no form name can be extracted from 
+                        # the placemark's description.
+KML_NS = {'kml': 'http://www.opengis.net/kml/2.2'}
+                        # This namespace dictionary is used to define the KML 
+                        # namespace for XML parsing. It allows the ElementTree 
+                        # module to correctly interpret KML elements when 
+                        # searching for them in the XML tree.
 
 class TableHTMLParser(HTMLParser):
     """
@@ -73,7 +99,33 @@ class TableHTMLParser(HTMLParser):
         if self.in_td:
             self.current_row.append(data)
 
-def get_form_name(html_string: str) -> str | None:
+class H1HTMLParser(HTMLParser):
+    """
+    A simple HTML parser to extract the content of the <h1> tag.
+    This class extends the HTMLParser from the html.parser module
+    to specifically parse HTML and extract the text content of the first <h1> 
+    tag found.
+    """
+    def __init__(self):
+        super().__init__()
+        self.in_h1 = False
+        self.text = None
+    def handle_starttag(self, tag, attrs):
+        """Handles the start of an HTML tag."""
+        if tag.lower() == 'h1':
+            self.in_h1 = True
+
+    def handle_endtag(self, tag):
+        """Handles the end of an HTML tag."""
+        if tag.lower() == 'h1':
+            self.in_h1 = False
+
+    def handle_data(self, data):
+        """Handles the data within an HTML tag."""
+        if self.in_h1 and not self.text:
+            self.text =data.strip()
+
+def get_form_name(html_string: str) -> Optional[str]:
     """
     Parses an HTML string to extract the content of the <h1> tag.
     Extracts and returns the text content of the first <h1> tag 
@@ -86,18 +138,21 @@ def get_form_name(html_string: str) -> str | None:
         str or None: The stripped text content of the <h1> tag if found, 
                      otherwise None.
     """
-    if not html_string:
-        return None
-    try:
-        root = ET.fromstring(f'<div>{html_string}</div>')
-        h1 = root.find('.//h1')
-        if h1 is not None and h1.text:
-            return h1.text.strip()
-    except ET.ParseError:
-        return None
-    return None
+    # if not html_string:
+    #     return None
+    # try:
+    #     root = ET.fromstring(f'<div>{html_string}</div>')
+    #     h1 = root.find('.//h1')
+    #     if h1 is not None and h1.text:
+    #         return h1.text.strip()
+    # except ET.ParseError:
+    #     return None
+    # return None
+    parser = H1HTMLParser()
+    parser.feed(html_string or "")
+    return parser.text
 
-def parse_html_description(html_string: str) -> dict[str, str]:
+def parse_html_description(html_string: str) -> Dict[str, str]:
     """
     Parses an HTML string containing tables and 
         extracts key-value pairs from table rows.
@@ -149,17 +204,15 @@ def group_placemarks_by_form(kmz_file_path: str) -> dict[str, list[ET.Element]]:
         kml_content = kmz.read(kml_file)
 
     root = ET.fromstring(kml_content)
-    ns = {'kml': 'http://www.opengis.net/kml/2.2'}
-    placemarks = root.findall('.//kml:Placemark', ns)
-    
+    placemarks = root.findall('.//kml:Placemark', KML_NS)
     forms = {}
     for pm in placemarks:
-        description_element = pm.find('kml:description', ns)
+        description_element = pm.find('kml:description', KML_NS)
         if description_element is not None and description_element.text:
             desc_html = description_element.text.strip()
         else:
             desc_html = '' 
-        form_name = get_form_name(desc_html)
+        form_name = get_form_name(desc_html) or NO_FORM
         if form_name:
             if form_name not in forms:
                 forms[form_name] = []
@@ -182,34 +235,31 @@ def extract_placemark_data(placemark: ET.Element) -> dict[str, str]:
                 and any additional fields parsed from the description.
     Extracts all relevant data from a single placemark element.
     """
-    ns = {'kml': 'http://www.opengis.net/kml/2.2'}
-    placemark_data = {}
+    name = ''
+    longitude = ''
+    latitude = ''
+    altitude = ''
+    extra = {}
 
-    name_element = placemark.find('kml:name', ns)
+    name_element = placemark.find('kml:name', KML_NS)
     if name_element is not None and name_element.text:
-        placemark_data['Name'] = name_element.text.strip()
-    else:
-        placemark_data['Name'] = ''
+        name = name_element.text.strip()
 
-    coordinates_element = placemark.find('.//kml:coordinates', ns)
+    coordinates_element = placemark.find('.//kml:coordinates', KML_NS)
     if coordinates_element is not None and coordinates_element.text:
         coordinates_string = coordinates_element.text.strip()
         coords = coordinates_string.split(',')
-        placemark_data['Longitude'] = coords[0] if len(coords) > 0 else ''
-        placemark_data['Latitude'] = coords[1] if len(coords) > 1 else ''
-        placemark_data['Altitude'] = coords[2] if len(coords) > 2 else ''
-    else:
-        placemark_data['Longitude'] = ''
-        placemark_data['Latitude'] = ''
-        placemark_data['Altitude'] = ''
-
-    description_element = placemark.find('kml:description', ns)
+        if len(coords) == 3:
+            longitude = coords[0]
+            latitude = coords[1]
+            altitude = coords[2]
+        elif len(coords) == 2:
+            longitude = coords[0]
+            latitude = coords[1]
+        elif len(coords) == 1:
+            longitude = coords[0]
+    description_element = placemark.find('kml:description', KML_NS)
     if description_element is not None and description_element.text:
         description_html = description_element.text.strip()
-    else:
-        description_html = ''
-    
-    description_data = parse_html_description(description_html)
-    placemark_data.update(description_data)
-    
-    return placemark_data
+        extra = parse_html_description(description_html)
+    return PlacemarkData(name=name, longitude=longitude, latitude=latitude, altitude=altitude, extra=extra)

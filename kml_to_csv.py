@@ -24,6 +24,8 @@ Dependencies:
 """
 import csv
 from pathlib import Path
+import xml.etree.ElementTree as ET
+from dataclasses import asdict
 from kml_parser import (
     group_placemarks_by_form as gpbf,
     extract_placemark_data,
@@ -83,13 +85,19 @@ def main() -> None:
             parse_html_description(first_placemark_desc_html).keys()
         )
         
-        fieldnames: list[str] = ['Name', 'Longitude', 'Latitude', 'Altitude'] + \
+        fieldnames: list[str] = ['name', 'longitude', 'latitude', 'altitude'] + \
                      description_keys
 
 
         all_placemarks_data: list[dict[str, str]] = []
         for pm in selected_placemarks:
-            all_placemarks_data.append(extract_placemark_data(pm))
+            placemark_data_obj = extract_placemark_data(pm)
+            # Convert PlacemarkData object to a dictionary
+            placemark_dict = asdict(placemark_data_obj)
+            # Flatten the 'extra' dictionary into the main dictionary
+            if 'extra' in placemark_dict:
+                placemark_dict.update(placemark_dict.pop('extra'))
+            all_placemarks_data.append(placemark_dict)
         
         # Define output csv path based on form name
         csv_filename: str = (
@@ -109,8 +117,14 @@ def main() -> None:
             f"from form '{selected_form_name}' written to {csv_filepath}"
         )
 
+    except FileNotFoundError as fnf_error:
+        print(f"File not found: {fnf_error}")
+    except ET.ParseError as parse_error:
+        print(f"Error parsing KML file: {parse_error}")
+    except csv.Error as csv_error:
+        print(f"Error writing CSV file: {csv_error}")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An unexpected error occurred: {e}")
 
 if __name__ == "__main__":
     main()
