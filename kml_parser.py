@@ -29,9 +29,9 @@ Example:
     and can be integrated into larger applications or scripts.  
     begin          : 2025-Aug-17
     git sha1       : 1234567890abcdef1234567890abcdef12345678
-    copyright       : (c) 2025 by Juan M. Bernales
+    copyright      : (c) 2025 by Juan M. Bernales
     email          : juanbernales at gmail dot com
-    license       : GPLv3
+    license        : GPLv3
     version        : 1.0.0
 """
 import xml.etree.ElementTree as ET
@@ -43,8 +43,9 @@ from dataclasses import dataclass, field
 @dataclass
 class PlacemarkData:
     """Data class to hold extracted placemark data.
-    This class is used to store the name, coordinates (longitude, latitude, altitude),
-    and any additional structured data extracted from the placemark's description.
+    This class is used to store the name, coordinates (longitude, latitude,
+    altitude), and any additional structured data extracted from the
+    placemark's description.
     """
     name: str = ''
     longitude: str = ''
@@ -54,14 +55,14 @@ class PlacemarkData:
 
 
 NO_FORM = "__NO_FORM__"
-                        # This constant is used to represent placemarks that do 
+                        # This constant is used to represent placemarks that do
                         # not belong to any specific form. It is used as a
-                        # default value when no form name can be extracted from 
+                        # default value when no form name can be extracted from
                         # the placemark's description.
 KML_NS = {'kml': 'http://www.opengis.net/kml/2.2'}
-                        # This namespace dictionary is used to define the KML 
-                        # namespace for XML parsing. It allows the ElementTree 
-                        # module to correctly interpret KML elements when 
+                        # This namespace dictionary is used to define the KML
+                        # namespace for XML parsing. It allows the ElementTree
+                        # module to correctly interpret KML elements when
                         # searching for them in the XML tree.
 
 class TableHTMLParser(HTMLParser):
@@ -262,4 +263,5 @@ def extract_placemark_data(placemark: ET.Element) -> dict[str, str]:
     if description_element is not None and description_element.text:
         description_html = description_element.text.strip()
         extra = parse_html_description(description_html)
-    return PlacemarkData(name=name, longitude=longitude, latitude=latitude, altitude=altitude, extra=extra)
+    return PlacemarkData(name=name, longitude=longitude, latitude=latitude,
+                          altitude=altitude, extra=extra)
