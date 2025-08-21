@@ -5,7 +5,7 @@ This script reads a KML file, extracts placemark data, groups them by form based
 the HTML description, and writes the data to a CSV file.
 It allows the user to select a form and outputs the corresponding placemark data.
 Usage:
-    python kml_to_csv.py
+    python kml_to_csv.py <input_file> [-o <output_directory>]
 
 Dependencies:
     - kml_parser.py: Contains functions for parsing KML and KMZ files.
@@ -23,6 +23,7 @@ Dependencies:
     version        : 1.0.0
 """
 import csv
+import argparse
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from dataclasses import asdict
@@ -36,12 +37,15 @@ def main() -> None:
     """
     Main function to run the KML to CSV conversion process.
     """
+    parser = argparse.ArgumentParser(
+        description='Converts KML files to CSV format, extracting placemark data and grouping by form.'
+    )
+    parser.add_argument('input_file', help='Path to the input KML/KMZ file.')
+    parser.add_argument('-o', '--output-dir', default='.', help='Output directory for the CSV file. Defaults to the current directory.')
+    args = parser.parse_args()
+
     try:
-        script_dir: Path = Path(__file__).resolve().parent
-        kmz_filename: str = (
-            'geopaparazzi_20250721_014514_kmz_20250817_012241.kmz'
-        )
-        kmz_filepath: Path = script_dir / kmz_filename
+        kmz_filepath: Path = Path(args.input_file)
         
         if not kmz_filepath.exists():
             print(f"Input file not found: {kmz_filepath}")
@@ -100,10 +104,12 @@ def main() -> None:
             all_placemarks_data.append(placemark_dict)
         
         # Define output csv path based on form name
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
         csv_filename: str = (
             f"{selected_form_name.replace(' ', '_').lower()}.csv"
         )
-        csv_filepath: Path = script_dir / csv_filename
+        csv_filepath: Path = output_dir / csv_filename
 
         with open(csv_filepath, 'w', newline='', encoding='utf-8') as csvfile:
             writer: csv.DictWriter = csv.DictWriter(csvfile, 
@@ -128,4 +134,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    
